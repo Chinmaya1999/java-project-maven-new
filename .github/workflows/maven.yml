@@ -2,29 +2,37 @@ name: Java CI/CD Pipeline to Tomcat
 
 on:
   push:
-    branches: [ master ]   # Trigger on push to main branch
+    branches: [ master ]   # ✅ make sure this matches your repo
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
 
     steps:
-      # 1. Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Set up JDK
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
-      # 3. Build with Maven
+      - name: Ensure Maven is installed
+        run: |
+          if ! command -v mvn &> /dev/null; then
+            echo "Installing Maven..."
+            if command -v apt-get &> /dev/null; then
+              sudo apt-get update && sudo apt-get install -y maven
+            elif command -v dnf &> /dev/null; then
+              sudo dnf install -y maven
+            fi
+          fi
+          mvn -version
+
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      # 4. Upload WAR as artifact (optional, for later jobs)
       - name: Upload WAR artifact
         uses: actions/upload-artifact@v4
         with:
@@ -32,21 +40,26 @@ jobs:
           path: target/*.war
 
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: build
-    environment: production
 
     steps:
-      # 5. Download WAR artifact
       - name: Download WAR artifact
         uses: actions/download-artifact@v4
         with:
           name: myapp
 
-      # 6. Deploy WAR via Tomcat Manager
       - name: Deploy to Tomcat
         run: |
-          WAR_FILE=$(ls *.war)
-          echo "Deploying $WAR_FILE to Tomcat..."
+          ls -la
+          WAR_FILE=$(ls *.war | head -n 1)
+
+          if [ -z "$WAR_FILE" ]; then
+            echo "❌ No WAR file found!"
+            exit 1
+          fi
+
+          echo "Deploying $WAR_FILE..."
+
           curl -v --upload-file "$WAR_FILE" \
             "http://${{ secrets.TOMCAT_USER }}:${{ secrets.TOMCAT_PASSWORD }}@${{ secrets.TOMCAT_HOST }}/manager/text/deploy?path=/myapp&update=true"

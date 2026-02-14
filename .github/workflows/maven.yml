@@ -43,7 +43,7 @@ jobs:
           path: target/*.war
 
   deploy:
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     needs: build
     environment: production
 
@@ -54,7 +54,7 @@ jobs:
         with:
           name: myapp
 
-     # 6. Deploy WAR via Tomcat Manager
+      # 6. Deploy WAR via Tomcat Manager
       - name: Deploy to Tomcat
         run: |
           WAR_FILE=$(ls *.war)
